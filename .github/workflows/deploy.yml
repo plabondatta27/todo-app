@@ -1,10 +1,7 @@
 name: Build Docker & Apply Migrations
 
 on:
-  workflow_dispatch:   # Run manually from GitHub UI
-
-env:
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}   # Store your Supabase URL in GitHub Secrets
+  workflow_dispatch:
 
 jobs:
   build_and_migrate:
@@ -15,24 +12,71 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug DATABASE_URL
-        run: |
-          echo "DATABASE_URL starts with: ${{ secrets.DATABASE_URL }}..."
-
-      # 2️⃣ Set up Docker Buildx (optional for multi-platform)
+      # 2️⃣ Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4️⃣ Build Docker image
-      - name: Build Docker image
-        run: |
-          docker build -t todo_app:latest .
+      # 3️⃣ Build Docker images
+      - name: Build Docker images
+        run: docker-compose build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 5️⃣ Run container to apply migrations
+      # 4️⃣ Test database connection
+      - name: Test database connection
+        run: |
+          docker-compose run --rm web python -c "
+          import sys
+          import os
+          try:
+              from sqlalchemy import create_engine
+              from sqlalchemy.sql import text
+              
+              db_url = os.environ.get('DATABASE_URL')
+              if not db_url:
+                  print('❌ DATABASE_URL not found')
+                  sys.exit(1)
+              
+              engine = create_engine(db_url)
+              with engine.connect() as conn:
+                  result = conn.execute(text('SELECT 1'))
+                  print('✅ Database connection successful')
+          except Exception as e:
+              print(f'❌ Database connection failed: {str(e)}')
+              sys.exit(1)
+          "
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # 5️⃣ Check current migration status
+      - name: Check migration status (before)
+        run: |
+          echo "Current migration status:"
+          docker-compose run --rm web flask db current || echo "No migrations applied yet"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # 6️⃣ Apply Flask migrations
       - name: Apply Flask migrations
         run: |
-          docker run --rm \
-            -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            -e FLASK_APP=app.py \
-            todo_app:latest \
-            flask db upgrade
+          echo "Applying migrations..."
+          docker-compose run --rm web flask db upgrade
+          echo "✅ Migrations applied successfully"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # 7️⃣ Verify migration status
+      - name: Verify migration status (after)
+        run: |
+          echo "Verifying migration status:"
+          docker-compose run --rm web flask db current
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # 8️⃣ Clean up
+      - name: Stop containers and clean up
+        if: always()
+        run: |
+          echo "Cleaning up containers and volumes..."
+          docker-compose down -v
+          echo "✅ Cleanup complete"
