@@ -18,14 +18,14 @@ jobs:
 
       # 3️⃣ Build Docker images
       - name: Build Docker images
-        run: docker-compose build
+        run: docker compose build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # 4️⃣ Test database connection
       - name: Test database connection
         run: |
-          docker-compose run --rm web python -c "
+          docker compose run --rm web python -c "
           import sys
           import os
           try:
@@ -52,7 +52,7 @@ jobs:
       - name: Check migration status (before)
         run: |
           echo "Current migration status:"
-          docker-compose run --rm web flask db current || echo "No migrations applied yet"
+          docker compose run --rm web flask db current || echo "No migrations applied yet"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -60,7 +60,7 @@ jobs:
       - name: Apply Flask migrations
         run: |
           echo "Applying migrations..."
-          docker-compose run --rm web flask db upgrade
+          docker compose run --rm web flask db upgrade
           echo "✅ Migrations applied successfully"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -69,7 +69,7 @@ jobs:
       - name: Verify migration status (after)
         run: |
           echo "Verifying migration status:"
-          docker-compose run --rm web flask db current
+          docker compose run --rm web flask db current
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -78,5 +78,5 @@ jobs:
         if: always()
         run: |
           echo "Cleaning up containers and volumes..."
-          docker-compose down -v
+          docker compose down -v
           echo "✅ Cleanup complete"
