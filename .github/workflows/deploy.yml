@@ -16,13 +16,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3️⃣ Build Docker images
+      # 3️⃣ Create external network
+      - name: Create Docker network
+        run: |
+          docker network create gigalogy-dev || echo "Network already exists"
+
+      # 4️⃣ Build Docker images
       - name: Build Docker images
         run: docker compose build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 4️⃣ Test database connection
+      # 5️⃣ Test database connection
       - name: Test database connection
         run: |
           docker compose run --rm web python -c "
@@ -48,7 +53,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 5️⃣ Check current migration status
+      # 6️⃣ Check current migration status
       - name: Check migration status (before)
         run: |
           echo "Current migration status:"
@@ -56,7 +61,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 6️⃣ Apply Flask migrations
+      # 7️⃣ Apply Flask migrations
       - name: Apply Flask migrations
         run: |
           echo "Applying migrations..."
@@ -65,7 +70,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 7️⃣ Verify migration status
+      # 8️⃣ Verify migration status
       - name: Verify migration status (after)
         run: |
           echo "Verifying migration status:"
@@ -73,10 +78,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      # 8️⃣ Clean up
+      # 9️⃣ Clean up
       - name: Stop containers and clean up
         if: always()
         run: |
           echo "Cleaning up containers and volumes..."
           docker compose down -v
+          docker network rm gigalogy-dev || echo "Network already removed"
           echo "✅ Cleanup complete"
